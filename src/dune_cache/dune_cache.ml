@@ -160,10 +160,7 @@ module Cache = struct
 
   let path_tmp cache = Path.relative cache.root "temp"
 
-  let with_lock cache f =
-    let lock = Lock_file.create (Path.relative cache.root ".lock") in
-    let finally () = Lock_file.unlock lock in
-    Exn.protect ~f ~finally
+  let with_lock _ f = f ()
 
   let make_path cache path =
     match cache.build_root with
@@ -243,7 +240,9 @@ module Cache = struct
         let tmp = path_tmp cache in
         (* dune-cache uses a single writer model, the promoted file name can be
            constant *)
-        let dest = Path.relative tmp "promoting" in
+        let dest =
+          Path.relative tmp ("promoting." ^ string_of_int (Unix.getpid ()))
+        in
         if Path.exists dest then
           Path.unlink dest
         else
