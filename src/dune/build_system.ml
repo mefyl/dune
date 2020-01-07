@@ -1366,16 +1366,13 @@ end = struct
       | exception Unix.Unix_error (ENOENT, _, _) -> ()
       | () -> () )
 
-  let compute_rule_digest (rule : Internal_rule.t) ~deps ~action ~sandbox_mode =
+  let compute_rule_trace (rule : Internal_rule.t) ~deps ~action ~sandbox_mode =
     let targets_as_list = Path.Build.Set.to_list rule.targets in
     let env = Internal_rule.effective_env rule in
-    let trace =
-      ( Dep.Set.trace deps ~sandbox_mode ~env ~eval_pred
-      , List.map targets_as_list ~f:(fun p -> Path.to_string (Path.build p))
-      , Option.map rule.context ~f:(fun c -> c.name)
-      , Action.for_shell action )
-    in
-    Digest.generic trace
+    ( Dep.Set.trace deps ~sandbox_mode ~env ~eval_pred
+    , List.map targets_as_list ~f:(fun p -> Path.to_string (Path.build p))
+    , Option.map rule.context ~f:(fun c -> c.name)
+    , Action.for_shell action )
 
   let compute_dependencies_digest deps ~sandbox_mode ~env ~eval_pred =
     Dep.Set.trace deps ~sandbox_mode ~env ~eval_pred
@@ -1430,7 +1427,8 @@ end = struct
       and depends_on_universe = Dep.Set.has_universe deps in
       force_rerun || depends_on_universe
     in
-    let rule_digest = compute_rule_digest rule ~deps ~action ~sandbox_mode in
+    let rule_trace = compute_rule_trace rule ~deps ~action ~sandbox_mode in
+    let rule_digest = Digest.generic rule_trace in
     let do_not_memoize =
       always_rerun || is_action_dynamic
       || Action.is_useful_to_memoize action = Clearly_not
@@ -1487,14 +1485,45 @@ end = struct
             Cached_digest.remove (Path.build target);
             Path.unlink_no_err (Path.build target));
         let from_Dune_cache =
+          let targets =
+            List.map ~f:Path.Build.to_string
+              (Path.Build.Set.to_list rule.targets)
+          in
+          let targets = String.concat ~sep:", " targets in
           match (do_not_memoize, t.caching) with
           | true, _
           | _, None ->
             None
           | false, Some { cache = (module Caching) as cache; _ } -> (
             match Caching.Cache.search Caching.cache rule_digest with
-            | Ok (_, files) -> Some (files, cache)
+            | Ok (_, files) ->
+              let fd =
+                Unix.openfile "/tmp/debug-cache"
+                  [ Unix.O_CREAT; Unix.O_APPEND; Unix.O_WRONLY ]
+                  0o640
+              in
+              let line =
+                Format.sprintf "%s: cache hit (%s)\n" targets
+                  (Digest.to_string rule_digest)
+              in
+              ignore
+                (Unix.write fd (Bytes.of_string line) 0 (String.length line));
+              Unix.close fd;
+              Some (files, cache)
             | Error msg ->
+              let fd =
+                Unix.openfile "/tmp/debug-cache"
+                  [ Unix.O_CREAT; Unix.O_APPEND; Unix.O_WRONLY ]
+                  0o640
+              in
+              let line =
+                Format.sprintf "%s: cache miss (%s): %s\n" targets
+                  (Digest.to_string rule_digest)
+                  msg
+              in
+              ignore
+                (Unix.write fd (Bytes.of_string line) 0 (String.length line));
+              Unix.close fd;
               Log.infof "cache miss: %s" msg;
               None )
         and cache_checking =
