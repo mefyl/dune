@@ -1,5 +1,5 @@
 (library
  (name dune_cache)
- (libraries dune_lang git git-unix irmin irmin-git lwt lwt.unix stdune uri
+ (libraries dune_lang git git-unix irmin irmin-mem lwt lwt.unix stdune uri
    xdg)
  (preprocess future_syntax))

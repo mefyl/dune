@@ -378,7 +378,7 @@ module Cache = struct
     else
       Result.ok
         { build_root = None
-        ; distributed = Distributed.irmin "/tmp/irmin"
+        ; distributed = Distributed.irmin ()
         ; duplication_mode
         ; handler
         ; repositories = []

@@ -10,13 +10,11 @@ let disabled =
     let distribute _ = Result.Ok ()
   end : S )
 
-let irmin path =
-  let module Store = Irmin_unix.FS.KV (Irmin.Contents.String) in
-  let store =
-    let open Lwt.Infix in
-    Store.Repo.v (Irmin_git.config ~bare:false path) >>= fun repo ->
-    Store.master repo
-  in
+let _irmin (type t)
+    (module Store : Irmin.S
+      with type t = t
+       and type key = string list
+       and type contents = string) (store : t Lwt.t) =
   ( module struct
     include Store
 
@@ -63,3 +61,11 @@ let irmin path =
       in
       Lwt_main.run store
   end : S )
+
+let irmin () =
+  let module Store = Irmin_mem.KV (Irmin.Contents.String) in
+  let store =
+    let open Lwt.Infix in
+    Store.Repo.v (Irmin_mem.config ()) >>= fun repo -> Store.master repo
+  in
+  _irmin (module Store) store
