@@ -164,11 +164,12 @@ end
 
 module Cache = struct
   type t =
-    { root : Path.t
-    ; build_root : Path.t option
-    ; repositories : repository list
-    ; handler : handler
+    { build_root : Path.t option
+    ; distributed : (module Distributed.S)
     ; duplication_mode : Duplication_mode.t
+    ; handler : handler
+    ; repositories : repository list
+    ; root : Path.t
     ; temp_dir : Path.t
     }
 
@@ -290,7 +291,7 @@ module Cache = struct
                ; digest = effective_hash
                })
     in
-    let+ promoted = Result.List.map ~f:promote paths in
+    let* promoted = Result.List.map ~f:promote paths in
     let metadata_path = FSSchemeImpl.path (path_meta cache) key
     and metadata_tmp_path = Path.relative cache.temp_dir "metadata"
     and files = List.map ~f:file_of_promotion promoted in
@@ -308,6 +309,15 @@ module Cache = struct
       | exception Sys_error _ -> Path.mkdir_p (Path.parent_exn metadata_path)
     in
     Path.rename metadata_tmp_path metadata_path;
+    let module D = (val cache.distributed) in
+    let* files =
+      let f (path, digest) =
+        let+ path = make_path cache (Path.Build.local path) in
+        (digest, Io.read_file ~binary:true path)
+      in
+      Result.List.map ~f paths
+    in
+    let+ () = D.distribute { key; metadata; metadata_path; files } in
     let f = function
       | Already_promoted file when cache.duplication_mode <> Copy ->
         cache.handler (Dedup file)
@@ -367,11 +377,12 @@ module Cache = struct
       Result.Error "unable to read dune-cache"
     else
       Result.ok
-        { root
-        ; build_root = None
-        ; repositories = []
-        ; handler
+        { build_root = None
+        ; distributed = Distributed.irmin "/tmp/irmin"
         ; duplication_mode
+        ; handler
+        ; repositories = []
+        ; root
         ; temp_dir =
             Path.temp_dir ~temp_dir:root "promoting"
               (string_of_int (Unix.getpid ()))
