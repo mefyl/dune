@@ -286,14 +286,14 @@ let promote_sync cache paths key metadata repo duplication =
   in
   Path.rename metadata_tmp_path metadata_path;
   let module D = (val cache.distributed) in
-  let* files =
-    let f (path, digest) =
-      let+ path = make_path cache (Path.Build.local path) in
-      (digest, Io.read_file ~binary:true path)
+  let+ () =
+    let f = function
+      | Promoted f
+      | Already_promoted f ->
+        f
     in
-    Result.List.map ~f paths
+    D.distribute { key; metadata; files = List.map ~f promoted }
   in
-  let+ () = D.distribute { key; metadata; metadata_path; files } in
   let f = function
     | Already_promoted file when cache.duplication_mode <> Copy ->
       cache.handler (Dedup file)
@@ -354,7 +354,7 @@ let make ?(root = default_root ())
   else
     Result.ok
       { build_root = None
-      ; distributed = Distributed.irmin ()
+      ; distributed = Distributed.irmin_git "/tmp/dune-cache"
       ; duplication_mode
       ; handler
       ; repositories = []

@@ -76,8 +76,8 @@ let external_libraries =
   ; "uutf"
   ; "jsonm"
   ; "irmin"
-  ; "irmin-mem"
   ; "irmin-git"
+  ; "irmin-mem"
   ]
 
 let local_libraries =

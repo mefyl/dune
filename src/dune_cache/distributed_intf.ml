@@ -1,11 +1,19 @@
 open Stdune
+open Dune_cache_intf
 
 type distribution =
   { key : Digest.t
   ; metadata : string
-  ; metadata_path : Path.t
-  ; files : (Digest.t * string) list
+  ; files : File.t list
   }
+
+module type WeakKey = sig
+  type t
+
+  val of_paths : Path.Build.t list -> t
+
+  val to_string : t -> string
+end
 
 module type S = sig
   type t
