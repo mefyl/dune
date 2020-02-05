@@ -14,11 +14,3 @@ module type WeakKey = sig
 
   val to_string : t -> string
 end
-
-module type S = sig
-  type t
-
-  val v : t
-
-  val distribute : distribution -> (unit, string) Result.t
-end

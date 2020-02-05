@@ -1,6 +1,18 @@
 open Stdune
 open Dune_cache_intf
 
+module type FSScheme = sig
+  val path : Path.t -> Digest.t -> Path.t
+
+  val digest : Path.t -> Digest.t
+
+  val list : Path.t -> Path.t list
+
+  val path_files : Path.t -> Path.t
+
+  val path_meta : Path.t -> Path.t
+end
+
 module type S = sig
   include Cache
 
