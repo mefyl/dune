@@ -240,15 +240,6 @@ let promote_sync cache paths key metadata ~repository ~duplication =
   let promote (path, expected_digest) =
     let* abs_path = make_path cache (Path.Build.local path) in
     cache.info [ Pp.textf "promote %s" (Path.to_string abs_path) ];
-    let stat = Unix.lstat (Path.to_string abs_path) in
-    let* stat =
-      if stat.st_kind = S_REG then
-        Result.Ok stat
-      else
-        Result.Error
-          (Format.sprintf "invalid file type: %s"
-             (Path.string_of_file_kind stat.st_kind))
-    in
     (* Create a duplicate (either a [Copy] or a [Hardlink] depending on the
        [duplication] setting) of the promoted file in a temporary directory to
        correctly handle the situation when the file is modified or deleted
@@ -291,9 +282,6 @@ let promote_sync cache paths key metadata ~repository ~duplication =
         let dest = Path.to_string in_the_cache in
         (* Move the temporary file to the cache. *)
         Unix.rename (Path.to_string tmp) dest;
-        (* Remove write permissions, making the cache entry immutable. We assume
-           that users do not modify the files in the cache. *)
-        Unix.chmod dest (stat.st_perm land 0o555);
         Result.Ok (Promoted { path; digest = effective_digest })
   in
   let+ promoted = Result.List.map ~f:promote paths in
